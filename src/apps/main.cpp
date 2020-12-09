@@ -69,14 +69,15 @@
 int main(int argc, char *argv[]) {
 
     // Chec the number of arguments
-    if (argc != 2) {
+    if (argc != 3) {
         std::cout << "********************************" << std::endl;
-        std::cout << "Usage of the code: ./traffic-sign-detection imageFileName.extension" << std::endl;
+        std::cout << "Usage of the code: ./traffic-sign-detection imageFileName.extension outputDir" << std::endl;
         std::cout << "********************************" << std::endl;
 
         return -1;
     }
     std::string path = argv[1];
+    std::string outputdir;
     std::size_t found = path.rfind("/");
     std::string directory = path.substr(found+1);
     path.append("/*.ppm");
@@ -87,7 +88,6 @@ int main(int argc, char *argv[]) {
     // Clock for measuring the elapsed time
     //std::chrono::time_point<std::chrono::system_clock> start, end;
     //start = std::chrono::system_clock::now();
-    cv::Mat input_image;
     cv::Mat output_image;
     for (size_t i=0; i<count; i++){
 
@@ -96,8 +96,15 @@ int main(int argc, char *argv[]) {
         std::size_t found = input_filename.rfind("/");
         std::string file = input_filename.substr(found);
         // Read the input image
-        input_image = cv::imread(input_filename);
         std::cout << input_filename << "\n";
+        cv::Mat input_image;
+        input_image = cv::imread(input_filename);
+
+        std::string outname = "/home/traffic-sign-detection/data/";
+        outname.append(directory);
+        outname.append(file);
+        std::cout << outname << "\n";
+
         // Check that the image has been opened
         if (!input_image.data) {
             std::cout << "Error to read the image. Check ''cv::imread'' function of OpenCV" << std::endl;
@@ -136,7 +143,6 @@ int main(int argc, char *argv[]) {
         // TODO - DEFINE THE THRESHOLD FOR THE BLUE TRAFFIC SIGN. FOR NOW WE AVOID THE PROCESSING FOR BLUE SIGN AND LET ONLY THE OTHER METHOD TO TAKE CARE OF IT.
         cv::Mat log_image_seg;
         segmentation::seg_log_chromatic(log_image, log_image_seg);
-
         /*
        * Merging and filtering of the previous segmentation
        */
@@ -160,8 +166,11 @@ int main(int argc, char *argv[]) {
        */
 
         std::vector< std::vector< cv::Point > > distorted_contours;
+        cv::Mat contour_image = cv::Mat::zeros(input_image.rows, input_image.cols, input_image.type());
         imageprocessing::contours_extraction(bin_image, distorted_contours);
-
+        cv::Scalar color(255,255,255);
+        cv::drawContours(contour_image, distorted_contours, -1, color, 2, 8);
+        cv::imwrite("countours.jpg", contour_image);
         /*
        * Correct the distortion for each contour
        */
@@ -179,145 +188,149 @@ int main(int argc, char *argv[]) {
         // Correct the distortion
         std::vector< std::vector< cv::Point2f > > undistorted_contours;
         imageprocessing::correction_distortion(distorted_contours, undistorted_contours, translation_matrix, rotation_matrix, scaling_matrix);
-
         // Normalise the contours to be inside a unit circle
         std::vector<double> factor_vector(undistorted_contours.size());
         std::vector< std::vector< cv::Point2f > > normalised_contours;
         initopt::normalise_all_contours(undistorted_contours, normalised_contours, factor_vector);
 
-        std::vector< std::vector< cv::Point2f > > detected_signs_2f(normalised_contours.size());
-        std::vector< std::vector< cv::Point > > detected_signs(normalised_contours.size());
+        if (normalised_contours.size() != 0) {
+            std::vector< std::vector< cv::Point2f > > detected_signs_2f(normalised_contours.size());
+            std::vector< std::vector< cv::Point > > detected_signs(normalised_contours.size());
 
-        // For each contours
-        for (unsigned int contour_idx = 0; contour_idx < normalised_contours.size(); contour_idx++) {
+            // For each contours
+            for (unsigned int contour_idx = 0; contour_idx < normalised_contours.size(); contour_idx++) {
 
-            Timer tmr("for each contours");
-            // For each type of traffic sign
-            /*
-         * sign_type = 0 -> nb_edges = 3;  gielis_sym = 6; radius
-         * sign_type = 1 -> nb_edges = 4;  gielis_sym = 4; radius
-         * sign_type = 2 -> nb_edges = 12; gielis_sym = 4; radius
-         * sign_type = 3 -> nb_edges = 8;  gielis_sym = 8; radius
-         * sign_type = 4 -> nb_edges = 3;  gielis_sym = 6; radius / 2
-         */
+                //Timer tmr("for each contours");
+                // For each type of traffic sign
+                /*
+             * sign_type = 0 -> nb_edges = 3;  gielis_sym = 6; radius
+             * sign_type = 1 -> nb_edges = 4;  gielis_sym = 4; radius
+             * sign_type = 2 -> nb_edges = 12; gielis_sym = 4; radius
+             * sign_type = 3 -> nb_edges = 8;  gielis_sym = 8; radius
+             * sign_type = 4 -> nb_edges = 3;  gielis_sym = 6; radius / 2
+             */
 
-            Timer tmrSgnType("For signType");
-            optimisation::ConfigStruct_<double> final_config;
-            double best_fit = std::numeric_limits<double>::infinity();
-            //int type_sign_to_keep = 0;
-            for (int sign_type = 0; sign_type < 5; sign_type++) {
-                Timer tmrIteration(" for_signType_iter");
+                //Timer tmrSgnType("For signType");
+                optimisation::ConfigStruct_<double> final_config;
+                double best_fit = std::numeric_limits<double>::infinity();
+                //int type_sign_to_keep = 0;
+                for (int sign_type = 0; sign_type < 5; sign_type++) {
+                    //Timer tmrIteration(" for_signType_iter");
 
-                // Check the center mass for a contour
-                cv::Point2f mass_center = initopt::mass_center_discovery(input_image, translation_matrix[contour_idx],
-                                                                         rotation_matrix[contour_idx], scaling_matrix[contour_idx],
-                                                                         normalised_contours[contour_idx], factor_vector[contour_idx],
-                                                                         sign_type);
+                    // Check the center mass for a contour
+                    cv::Point2f mass_center = initopt::mass_center_discovery(input_image, translation_matrix[contour_idx],
+                                                                             rotation_matrix[contour_idx], scaling_matrix[contour_idx],
+                                                                             normalised_contours[contour_idx], factor_vector[contour_idx],
+                                                                             sign_type);
 
-                // Find the rotation offset
-                double rot_offset = initopt::rotation_offset(normalised_contours[contour_idx]);
+                    // Find the rotation offset
+                    double rot_offset = initopt::rotation_offset(normalised_contours[contour_idx]);
 
-                // Declaration of the parameters of the gielis with the default parameters
-                optimisation::ConfigStruct_<double> contour_config;
-                // Set the number of symmetry
-                int gielis_symmetry = 0;
-                switch (sign_type) {
-                    case 0:
-                        gielis_symmetry = 6;
-                        break;
-                    case 1:
-                        gielis_symmetry = 4;
-                        break;
-                    case 2:
-                        gielis_symmetry = 4;
-                        break;
-                    case 3:
-                        gielis_symmetry = 8;
-                        break;
-                    case 4:
-                        gielis_symmetry = 6;
-                        break;
+                    // Declaration of the parameters of the gielis with the default parameters
+                    optimisation::ConfigStruct_<double> contour_config;
+                    // Set the number of symmetry
+                    int gielis_symmetry = 0;
+                    switch (sign_type) {
+                        case 0:
+                            gielis_symmetry = 6;
+                            break;
+                        case 1:
+                            gielis_symmetry = 4;
+                            break;
+                        case 2:
+                            gielis_symmetry = 4;
+                            break;
+                        case 3:
+                            gielis_symmetry = 8;
+                            break;
+                        case 4:
+                            gielis_symmetry = 6;
+                            break;
+                    }
+                    contour_config.p = gielis_symmetry;
+                    // Set the rotation matrix
+                    contour_config.theta_offset = rot_offset;
+                    // Set the mass center
+                    contour_config.x_offset = mass_center.x;
+                    contour_config.y_offset = mass_center.y;
+
+                    //Timer tmrOpt("\t for_signType_gielisOptimization");
+                    // Go for the optimisation
+                    Eigen::Vector4d mean_err(0,0,0,0), std_err(0,0,0,0);
+                    optimisation::gielis_optimisation(normalised_contours[contour_idx], contour_config, mean_err, std_err);
+
+                    mean_err = mean_err.cwiseAbs();
+                    double err_fit = mean_err.sum();
+
+                    if (err_fit < best_fit) {
+                        best_fit = err_fit;
+                        final_config = contour_config;
+                        //type_sign_to_keep = sign_type;
+                    }
                 }
-                contour_config.p = gielis_symmetry;
-                // Set the rotation matrix
-                contour_config.theta_offset = rot_offset;
-                // Set the mass center
-                contour_config.x_offset = mass_center.x;
-                contour_config.y_offset = mass_center.y;
+                cv::Point2f mass_center = initopt::mass_center_discovery(input_image, translation_matrix[0],
+                                                                         rotation_matrix[0], scaling_matrix[0],
+                                                                         normalised_contours[0], factor_vector[0],
+                                                                         0, outname, true);
 
-                Timer tmrOpt("\t for_signType_gielisOptimization");
-                // Go for the optimisation
-                Eigen::Vector4d mean_err(0,0,0,0), std_err(0,0,0,0);
-                optimisation::gielis_optimisation(normalised_contours[contour_idx], contour_config, mean_err, std_err);
+                //Timer tmr2("Reconstruct contour");
 
-                mean_err = mean_err.cwiseAbs();
-                double err_fit = mean_err.sum();
+                // Reconstruct the contour
+                std::cout << "Contour #" << contour_idx << ":\n" << final_config << std::endl;
+                std::vector< cv::Point2f > gielis_contour;
+                int nb_points = 1000;
+                optimisation::gielis_reconstruction(final_config, gielis_contour, nb_points);
+                std::vector< cv::Point2f > denormalised_gielis_contour;
+                initopt::denormalise_contour(gielis_contour, denormalised_gielis_contour, factor_vector[contour_idx]);
+                std::vector< cv::Point2f > distorted_gielis_contour;
+                imageprocessing::inverse_transformation_contour(denormalised_gielis_contour, distorted_gielis_contour,
+                                                                translation_matrix[contour_idx], rotation_matrix[contour_idx],
+                                                                scaling_matrix[contour_idx]);
 
-                if (err_fit < best_fit) {
-                    best_fit = err_fit;
-                    final_config = contour_config;
-                    //type_sign_to_keep = sign_type;
+                // Transform to cv::Point to show the results
+                std::vector< cv::Point > distorted_gielis_contour_int(distorted_gielis_contour.size());
+                for (unsigned int i = 0; i < distorted_gielis_contour.size(); i++) {
+                    distorted_gielis_contour_int[i].x = (int) std::round(distorted_gielis_contour[i].x);
+                    distorted_gielis_contour_int[i].y = (int) std::round(distorted_gielis_contour[i].y);
                 }
+
+                detected_signs_2f[contour_idx] = distorted_gielis_contour;
+                detected_signs[contour_idx] = distorted_gielis_contour_int;
+
             }
 
-            Timer tmr2("Reconstruct contour");
+            //end = std::chrono::system_clock::now();
+            //std::chrono::duration<double> elapsed_seconds = end-start;
+            //std::time_t end_time = std::chrono::system_clock::to_time_t(end);
 
-            // Reconstruct the contour
-            std::cout << "Contour #" << contour_idx << ":\n" << final_config << std::endl;
-            std::vector< cv::Point2f > gielis_contour;
-            int nb_points = 1000;
-            optimisation::gielis_reconstruction(final_config, gielis_contour, nb_points);
-            std::vector< cv::Point2f > denormalised_gielis_contour;
-            initopt::denormalise_contour(gielis_contour, denormalised_gielis_contour, factor_vector[contour_idx]);
-            std::vector< cv::Point2f > distorted_gielis_contour;
-            imageprocessing::inverse_transformation_contour(denormalised_gielis_contour, distorted_gielis_contour,
-                                                            translation_matrix[contour_idx], rotation_matrix[contour_idx],
-                                                            scaling_matrix[contour_idx]);
+            //std::cout << "Finished computation at " << std::ctime(&end_time)
+            //          << "Elapsed time: " << elapsed_seconds.count()*1000 << " ms\n";
 
-            // Transform to cv::Point to show the results
-            std::vector< cv::Point > distorted_gielis_contour_int(distorted_gielis_contour.size());
-            for (unsigned int i = 0; i < distorted_gielis_contour.size(); i++) {
-                distorted_gielis_contour_int[i].x = (int) std::round(distorted_gielis_contour[i].x);
-                distorted_gielis_contour_int[i].y = (int) std::round(distorted_gielis_contour[i].y);
+
+            //output_image = input_image.clone();
+            //randomly choose first contour for distortion correction
+            //cv::Mat output_corrected = cv::Mat::zeros(input_image.rows, input_image.cols, input_image.type() );
+            // Calculate the affine transformation using the rotation, scaling and translation matrices
+            // Warp the original image
+            //cv::Mat transform_warping = translation_matrix[0].inv() * rotation_matrix[0] * scaling_matrix[0] * translation_matrix[0];
+            //cv::Mat warp_image;
+            //cv::warpPerspective(input_image, warp_image, transform_warping, input_image.size(), cv::INTER_CUBIC, cv::BORDER_REPLICATE);
+            /*cv::Mat transform_matrix;
+            transform_matrix = rotation_matrix[0] * scaling_matrix[0] * translation_matrix[0];
+            cv::Mat transform_matrix2D = cv::Mat::zeros(2, 3, CV_32F);
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < 2; j++) {
+                    transform_matrix2D.at<float>(i,j) = transform_matrix.at<float>(i,j);
+                }
             }
-
-            detected_signs_2f[contour_idx] = distorted_gielis_contour;
-            detected_signs[contour_idx] = distorted_gielis_contour_int;
-
+            //cv::warpAffine(output_image, output_corrected, transform_matrix2D, output_corrected.size() );*/
+            //cv::imwrite(outname, warp_image);
+        } else {
+            std::string outname = "/home/traffic-sign-detection/data/Images/";
+            outputdir.append(file);
+            cv::imwrite(path, input_image);
         }
 
-        //end = std::chrono::system_clock::now();
-        //std::chrono::duration<double> elapsed_seconds = end-start;
-        //std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-
-        //std::cout << "Finished computation at " << std::ctime(&end_time)
-        //          << "Elapsed time: " << elapsed_seconds.count()*1000 << " ms\n";
-
-
-        output_image = input_image.clone();
-        //randomly choose first contour for distortion correction
-        //cv::Mat output_corrected = cv::Mat::zeros(input_image.rows, input_image.cols, input_image.type() );
-        // Calculate the affine transformation using the rotation, scaling and translation matrices
-        // Warp the original image
-        cv::Mat transform_warping = translation_matrix[0].inv() * rotation_matrix[0] * scaling_matrix[0] * translation_matrix[0];
-        cv::Mat warp_image;
-        cv::warpPerspective(input_image, warp_image, transform_warping, input_image.size(), cv::INTER_CUBIC, cv::BORDER_REPLICATE);
-        /*cv::Mat transform_matrix;
-        transform_matrix = rotation_matrix[0] * scaling_matrix[0] * translation_matrix[0];
-        cv::Mat transform_matrix2D = cv::Mat::zeros(2, 3, CV_32F);
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 2; j++) {
-                transform_matrix2D.at<float>(i,j) = transform_matrix.at<float>(i,j);
-            }
-        }
-        cv::warpAffine(output_image, output_corrected, transform_matrix2D, output_corrected.size() );*/
-        cv::Scalar color(0,255,0);
-        cv::drawContours(output_image, detected_signs, -1, color, 2, 8);
-        std::string outname = "/home/traffic-sign-detection/data/";
-        outname.append(directory);
-        outname.append(file);
-        std::cout << outname << "\n";
-        cv::imwrite(outname, warp_image);
         //cv::imwrite("corrected.jpg", output_corrected);
     }
 

@@ -111,6 +111,7 @@ cv::Point2f radial_symmetry_detector(const cv::Mat& roi_image, const int& radius
 
 // Function to discover an approximation of the mass center for each contour using a voting method for a given contour
 // THE CONTOUR NEED TO BE THE NORMALIZED CONTOUR WHICH ARE CORRECTED FOR THE DISTORTION
+cv::Point2f mass_center_discovery(const cv::Mat& original_image, const cv::Mat& translation_matrix, const cv::Mat& rotation_matrix, const cv::Mat& scaling_matrix, const std::vector< cv::Point2f >& contour, const double& factor, const int& type_traffic_sign, const std::string& outfile, const bool& write);
 cv::Point2f mass_center_discovery(const cv::Mat& original_image, const cv::Mat& translation_matrix, const cv::Mat& rotation_matrix, const cv::Mat& scaling_matrix, const std::vector< cv::Point2f >& contour, const double& factor, const int& type_traffic_sign);
 
 // Function to convert a contour from euclidean to polar coordinates

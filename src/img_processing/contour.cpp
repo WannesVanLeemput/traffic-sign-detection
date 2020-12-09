@@ -641,6 +641,23 @@ cv::Point2f radial_symmetry_detector(const cv::Mat& roi_image, const int& radius
 }
 
 // Function to discover an approximation of the mass center for each contour using a voting method for a given contour
+
+cv::Point2f mass_center_discovery(const cv::Mat& original_image, const cv::Mat& translation_matrix, const cv::Mat& rotation_matrix, const cv::Mat& scaling_matrix, const std::vector< cv::Point2f >& contour, const double& factor, const int& type_traffic_sign, const std::string& outfile, const bool& write) {
+
+    // Compute the transformation necessary to warp the original image
+    cv::Mat transform_warping = translation_matrix.inv() * rotation_matrix * scaling_matrix * translation_matrix;
+
+    // Warp the original image
+    cv::Mat warp_image;
+    cv::warpPerspective(original_image, warp_image, transform_warping, original_image.size(), cv::INTER_CUBIC,
+                        cv::BORDER_REPLICATE);
+    if (write) {
+        cv::imwrite(outfile, warp_image);
+    }
+    cv::Point2f ret;
+    return ret;
+}
+
 cv::Point2f mass_center_discovery(const cv::Mat& original_image, const cv::Mat& translation_matrix, const cv::Mat& rotation_matrix, const cv::Mat& scaling_matrix, const std::vector< cv::Point2f >& contour, const double& factor, const int& type_traffic_sign) {
 
     // Compute the transformation necessary to warp the original image
@@ -649,7 +666,6 @@ cv::Point2f mass_center_discovery(const cv::Mat& original_image, const cv::Mat& 
     // Warp the original image
     cv::Mat warp_image;
     cv::warpPerspective(original_image, warp_image, transform_warping, original_image.size(), cv::INTER_CUBIC, cv::BORDER_REPLICATE);
-
     // We need to denormalise the contour using the normalisation factor
     std::vector< cv::Point2f > denormalised_contour;
     denormalise_contour(contour, denormalised_contour, factor);
