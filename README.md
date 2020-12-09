@@ -10,6 +10,13 @@ System requirements:
 * Eigen 3.2.0
 * OpenCV 2.4.8
 * GTest 1.6.0
+* Docker
+
+## Build and run dockerfile
+
+* `docker build -t traffic-sign-detection:latest .`
+* `docker run -it --rm --mount type=bind,source<folder>,target=/home/traffic-sign-detection/data traffic-sign-detection`
+* `./../bin/main <folder containing png files> <folder to output warped images in>`
 
 ### CMake Library
 
